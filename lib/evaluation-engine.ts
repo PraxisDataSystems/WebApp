@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { parse } from 'csv-parse/sync';
-import OpenAI from 'openai';
+// OpenAI import removed for Vercel compatibility - evaluation runs server-side
 
 export interface Property {
   // Raw Propstream data
@@ -56,11 +56,10 @@ export interface EvaluationConfig {
 }
 
 export class EvaluationEngine {
-  private openai: OpenAI;
   private config: EvaluationConfig;
 
   constructor(apiKey: string, config: EvaluationConfig) {
-    this.openai = new OpenAI({ apiKey });
+    // OpenAI integration disabled for Vercel - evaluation runs on server
     this.config = config;
   }
 
@@ -97,108 +96,38 @@ export class EvaluationEngine {
   }
 
   async evaluateProperty(property: Property, searchName: string): Promise<EvaluatedProperty> {
-    const prompt = this.config.prompts[searchName] || this.config.prompts['default'];
+    // Basic calculations without AI (AI evaluation runs on server-side)
+    const arv = property.currentValue * 1.15;
+    const cashOffer = arv * 0.7;
+    const wholesalePrice = cashOffer * 1.05;
+    const arvSpread = ((arv - property.currentValue) / property.currentValue) * 100;
+    const ltv = property.loanAmount ? (property.loanAmount / property.currentValue) * 100 : 0;
 
-    const propertyData = `
-Property Details:
-- Address: ${property.address}, ${property.city}, ${property.state} ${property.zip}
-- Current Value: $${property.currentValue.toLocaleString()}
-- Bedrooms: ${property.bedrooms}
-- Bathrooms: ${property.bathrooms}
-- Square Feet: ${property.sqft}
-- Year Built: ${property.yearBuilt}
-- Loan Amount: $${(property.loanAmount || 0).toLocaleString()}
-- Estimated Equity: $${(property.estimatedEquity || 0).toLocaleString()}
-- LTV: ${property.loanAmount ? ((property.loanAmount / property.currentValue) * 100).toFixed(2) : 0}%
+    // Determine strategy and financing
+    const strategy = arvSpread > this.config.thresholds.arvSpreadMin ? 'Fix & Flip' : 'Turnkey';
+    const financing = this.determineFinancing(ltv, property);
 
-Task: ${prompt}
+    // Generate outreach message
+    const outreachMessage = this.generateOutreachMessage(
+      property,
+      { arv, cashOffer, wholesalePrice, strategy, financing },
+      'Basic evaluation'
+    );
 
-Please provide your analysis in the following JSON format:
-{
-  "arv": <number>,
-  "cashOffer": <number>,
-  "wholesalePrice": <number>,
-  "contextNotes": "<string>",
-  "reasoning": "<string>"
-}
-`;
-
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: 'gpt-4',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a real estate investment analyst specializing in wholesaling, fix & flip, and creative financing strategies.'
-          },
-          {
-            role: 'user',
-            content: propertyData
-          }
-        ],
-        temperature: 0.3,
-        response_format: { type: 'json_object' }
-      });
-
-      const analysis = JSON.parse(response.choices[0].message.content || '{}');
-
-      // Calculate metrics
-      const arv = analysis.arv || property.currentValue * 1.15;
-      const cashOffer = analysis.cashOffer || arv * 0.7;
-      const wholesalePrice = analysis.wholesalePrice || cashOffer * 1.05;
-      const arvSpread = ((arv - property.currentValue) / property.currentValue) * 100;
-      const ltv = property.loanAmount ? (property.loanAmount / property.currentValue) * 100 : 0;
-
-      // Determine strategy and financing
-      const strategy = arvSpread > this.config.thresholds.arvSpreadMin ? 'Fix & Flip' : 'Turnkey';
-      const financing = this.determineFinancing(ltv, property);
-
-      // Generate outreach message
-      const outreachMessage = this.generateOutreachMessage(
-        property,
-        { arv, cashOffer, wholesalePrice, strategy, financing },
-        analysis.contextNotes
-      );
-
-      return {
-        ...property,
-        arv,
-        cashOffer,
-        wholesalePrice,
-        arvSpread,
-        ltv,
-        strategy,
-        financing,
-        contextNotes: analysis.contextNotes || '',
-        outreachMessage,
-        searchName,
-        evaluatedAt: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('Evaluation failed:', error);
-      
-      // Fallback to basic calculations
-      const arv = property.currentValue * 1.15;
-      const cashOffer = arv * 0.7;
-      const wholesalePrice = cashOffer * 1.05;
-      const arvSpread = 15;
-      const ltv = property.loanAmount ? (property.loanAmount / property.currentValue) * 100 : 0;
-      
-      return {
-        ...property,
-        arv,
-        cashOffer,
-        wholesalePrice,
-        arvSpread,
-        ltv,
-        strategy: 'Turnkey',
-        financing: 'Cash Offer',
-        contextNotes: 'Automated evaluation (API error)',
-        outreachMessage: 'Contact property owner',
-        searchName,
-        evaluatedAt: new Date().toISOString()
-      };
-    }
+    return {
+      ...property,
+      arv,
+      cashOffer,
+      wholesalePrice,
+      arvSpread,
+      ltv,
+      strategy,
+      financing,
+      contextNotes: 'Basic evaluation (AI runs server-side)',
+      outreachMessage,
+      searchName,
+      evaluatedAt: new Date().toISOString()
+    };
   }
 
   private determineFinancing(ltv: number, property: Property): 'Cash Offer' | 'Seller Financing' | 'Subject To' {
