@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.production
+
+# Next.js build
+.next/
+out/
+
+# Database
+*.db
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Credentials (never commit these!)
+credentials/
+
+# Misc
+*.tgz
